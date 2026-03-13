@@ -61,7 +61,14 @@ def write_csv_output(filepath, data, statistics):
                 writer.writerow([name, value])
         
         writer.writerow([])
-        
+
+        # Write track diversity details
+        writer.writerow(['DIVERSITY DETAILS'])
+        diversity_details = statistics.get('Track Diversity', {})
+        for category, score in diversity_details.items():
+            writer.writerow([category, f"{score:.4f}"])
+        writer.writerow([])
+
         # Write pitch distribution
         writer.writerow(['PITCH DISTRIBUTION'])
         writer.writerow(['Pitch', 'Count'])
@@ -131,7 +138,7 @@ def print_summary(data, statistics):
         data: MIDIData object
         statistics: Dictionary of computed statistics
     """
-    print(f"\n{'='*60}")
+    print(f"{'='*60}")
     print(f"MIDI Analysis Summary")
     print(f"{'='*60}")
     print(f"Tempo: {data.tempo:.2f} BPM")
@@ -147,5 +154,9 @@ def print_summary(data, statistics):
     print(f"  Average: {statistics['Average Duration (seconds)']:.3f} seconds ({statistics['Average Duration (beats)']:.3f} beats)")
     print(f"  Median: {statistics['Median Duration (seconds)']:.3f} seconds ({statistics['Median Duration (beats)']:.3f} beats)")
     print(f"\nConsonance Coefficient: {statistics['Consonance Coefficient']:.4f}")
-    print(f"\nDiversity score: {statistics['Track Diversity']:.4f}")
-    print(f"{'='*60}\n")
+    print(f"\nDiversity score: {statistics['Track Diversity']['Overall Diversity']:.4f}")
+    print(f"  Pitch diversity: {statistics['Track Diversity']['Pitch Diversity']:.4f}")
+    print(f"  Interval diversity: {statistics['Track Diversity']['Interval Diversity']:.4f}")
+    print(f"  Duration diversity: {statistics['Track Diversity']['Duration Diversity']:.4f}")
+    print(f"  Rhythm diversity: {statistics['Track Diversity']['Rhythm Diversity']:.4f}")
+    print(f"  Pattern diversity: {statistics['Track Diversity']['Pattern Diversity']:.4f}\n")

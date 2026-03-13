@@ -36,6 +36,7 @@ def main():
     output_file = os.path.join(output_dir, f"{base_name}_analysis.csv")
     
     try:
+        print(f"{'-'*60}")
         print(f"Parsing MIDI file: {input_file}")
         
         # Parse MIDI file
@@ -54,6 +55,7 @@ def main():
         print_summary(data, statistics)
         
         print(f"Analysis complete! Results saved to '{output_file}'")
+        print(f"{'-'*60}\n")
         
     except FileNotFoundError as e:
         print(f"Error: {e}")

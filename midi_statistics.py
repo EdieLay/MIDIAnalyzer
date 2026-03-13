@@ -202,7 +202,7 @@ def calculate_track_diversity(data):
     - pitch diversity
     - interval diversity
     - note duration diversity
-    - inter-onset interval (rhythm spacing) diversity
+    - inter-onset interval (rhythm spacing, interval between notes' start times) diversity
     - local pattern diversity via unique 2-grams and 3-grams
 
     Uses only:
@@ -220,7 +220,7 @@ def calculate_track_diversity(data):
     pitches = []
     durations = []
     intervals = []
-    iois = []
+    rhythms = []
     tokens = []
 
     prev_note = None
@@ -234,36 +234,50 @@ def calculate_track_diversity(data):
 
         if prev_note is None:
             interval = 0
-            ioi_bin = 0.0
+            rhythm_bin = 0.0
         else:
             interval = pitch - prev_note.pitch
-            ioi_bin = quantize(note.start_beats - prev_note.start_beats, quant_step)
+            rhythm_bin = quantize(note.start_beats - prev_note.start_beats, quant_step)
 
             intervals.append(interval)
-            iois.append(ioi_bin)
+            rhythms.append(rhythm_bin)
 
-        tokens.append((interval, duration_bin, ioi_bin))
+        tokens.append((interval, duration_bin, rhythm_bin))
         prev_note = note
 
-    pitch_score = normalized_entropy(pitches)
+    pitch_entropy = normalized_entropy(pitches)
+    unique_pitch_ratio = len(set(pitches)) / 12.0
+    unique_pitch_ratio = min(unique_pitch_ratio, 1.0)
+    pitch_score = pitch_entropy * unique_pitch_ratio
+    
     duration_score = normalized_entropy(durations)
     interval_score = normalized_entropy(intervals)
-    ioi_score = normalized_entropy(iois)
+    rhythm_score = normalized_entropy(rhythms)
 
-    bigram_score = ngram_unique_ratio(tokens, 2)
+    # bigram_score = ngram_unique_ratio(tokens, 2)
     trigram_score = ngram_unique_ratio(tokens, 3)
+    quadgram_score = ngram_unique_ratio(tokens, 4)
+    pentagram_score = ngram_unique_ratio(tokens, 5)
 
-    pattern_score = bigram_score if len(tokens) < 3 else 0.5 * bigram_score + 0.5 * trigram_score
+    # pattern_score = bigram_score if len(tokens) < 3 else (bigram_score + trigram_score) / 2 if (len(tokens) < 4) else (bigram_score + trigram_score + quadgram_score) / 3
+    pattern_score = trigram_score if len(tokens) < 4 else (trigram_score + quadgram_score) / 2 if (len(tokens) < 5) else (trigram_score + quadgram_score + pentagram_score) / 3
 
     diversity = (
-        0.20 * pitch_score +
-        0.25 * interval_score +
-        0.20 * duration_score +
-        0.15 * ioi_score +
-        0.20 * pattern_score
+        0.15 * pitch_score +
+        0.20 * interval_score +
+        0.15 * duration_score +
+        0.15 * rhythm_score +
+        0.35 * pattern_score
     )
 
-    return round(max(0.0, min(1.0, diversity)), 4)
+    return {
+        'Pitch Diversity': pitch_score,
+        'Interval Diversity': interval_score,
+        'Duration Diversity': duration_score,
+        'Rhythm Diversity': rhythm_score,
+        'Pattern Diversity': pattern_score,
+        'Overall Diversity': round(max(0.0, min(1.0, diversity)), 4)
+    }
 
 
 # Registry of all statistics functions
@@ -282,7 +296,6 @@ STATISTICS = [
     ('Average Velocity', calculate_average_velocity),
     ('Median Velocity', calculate_median_velocity),
     ('Consonance Coefficient', calculate_consonance_coefficient),
-    ('Track Diversity', calculate_track_diversity),
 ]
 
 
@@ -306,5 +319,6 @@ def compute_all_statistics(data):
     results['Pitch Distribution'] = calculate_pitch_distribution(data)
     results['Interval Distribution'] = calculate_interval_distribution(data)
     results['Consonance by Instrument'] = calculate_consonance_by_instrument(data)
+    results['Track Diversity'] = calculate_track_diversity(data)
     
     return results
