@@ -4,7 +4,8 @@ Statistical analysis functions for MIDI data
 # Словарь функций в самом конце файла. При создании функции её нужно добавлять в этот словарь.
 
 from collections import Counter
-from utils import is_consonant_interval, find_repeating_patterns
+import math
+from utils import is_consonant_interval, normalized_entropy, ngram_unique_ratio, quantize
 
 
 def calculate_total_notes(data):
@@ -194,40 +195,75 @@ def calculate_consonance_by_instrument(data):
     return result
 
 def calculate_track_diversity(data):
-    """Calculate track diversity score based on repeating patterns"""
-    if not data.notes:
+    """
+    Calculate diversity score for a monophonic MIDI melody in range [0, 1].
+
+    The score combines:
+    - pitch diversity
+    - interval diversity
+    - note duration diversity
+    - inter-onset interval (rhythm spacing) diversity
+    - local pattern diversity via unique 2-grams and 3-grams
+
+    Uses only:
+    - note pitch
+    - note start time in beats
+    - note duration in beats
+    """
+    if not data.notes or len(data.notes) < 2:
         return 0.0
-        
-    total_notes = len(data.notes)
-    if total_notes == 0:
-        return 0.0
-    if total_notes == 1:
-        return 1.0
-        
-    sorted_notes = sorted(data.notes, key=lambda n: n.start)
-    pitches = [n.pitch for n in sorted_notes]
-    
-    # Find all repeating patterns
-    patterns = find_repeating_patterns(pitches)
-    
-    diversity_score = 1.0
-    total_penalty = 0.0
-    
-    # Apply penalties for single-note repeats
-    pitch_counts = Counter(pitches)
-    for count in pitch_counts.values():
-        if count > 1:
-            total_penalty += 0.01 * (count - 1) / total_notes
-    
-    # Apply penalties for pattern repeats
-    for pattern, count, _ in patterns:
-        pattern_len = len(pattern)
-        if pattern_len >= 2:
-            penalty = 1.5 * (pattern_len) * (count - 1) / total_notes
-            total_penalty += penalty
-    
-    diversity_score = max(0.0, diversity_score - total_penalty)
-    return round(diversity_score, 4)
+
+    quant_step = 0.25
+
+    sorted_notes = sorted(data.notes, key=lambda n: (n.start_beats, n.pitch, n.end_beats))
+
+    pitches = []
+    durations = []
+    intervals = []
+    iois = []
+    tokens = []
+
+    prev_note = None
+
+    for note in sorted_notes:
+        pitch = note.pitch
+        duration_bin = quantize(note.duration_beats, quant_step)
+
+        pitches.append(pitch)
+        durations.append(duration_bin)
+
+        if prev_note is None:
+            interval = 0
+            ioi_bin = 0.0
+        else:
+            interval = pitch - prev_note.pitch
+            ioi_bin = quantize(note.start_beats - prev_note.start_beats, quant_step)
+
+            intervals.append(interval)
+            iois.append(ioi_bin)
+
+        tokens.append((interval, duration_bin, ioi_bin))
+        prev_note = note
+
+    pitch_score = normalized_entropy(pitches)
+    duration_score = normalized_entropy(durations)
+    interval_score = normalized_entropy(intervals)
+    ioi_score = normalized_entropy(iois)
+
+    bigram_score = ngram_unique_ratio(tokens, 2)
+    trigram_score = ngram_unique_ratio(tokens, 3)
+
+    pattern_score = bigram_score if len(tokens) < 3 else 0.5 * bigram_score + 0.5 * trigram_score
+
+    diversity = (
+        0.20 * pitch_score +
+        0.25 * interval_score +
+        0.20 * duration_score +
+        0.15 * ioi_score +
+        0.20 * pattern_score
+    )
+
+    return round(max(0.0, min(1.0, diversity)), 4)
 
 
 # Registry of all statistics functions

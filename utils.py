@@ -2,6 +2,8 @@
 Utility functions for MIDI analysis
 """
 
+from collections import Counter
+import math
 
 def note_name(midi_number):
     """
@@ -57,45 +59,41 @@ def is_consonant_interval(interval):
     dissonant = [1, 2, 6, 10, 11]
     return interval not in dissonant
 
-def find_repeating_patterns(notes, min_length=2):
+
+def normalized_entropy(values):
     """
-    Find all maximal-length repeating patterns in a note sequence.
-    Returns list of tuples: (pattern, count, positions)
+    Shannon entropy normalized to [0, 1].
+    0  -> all values identical
+    1  -> maximal diversity for given set
     """
-    patterns = []
-    n = len(notes)
-    used_positions = set()
-    
-    # Check patterns from longest to shortest
-    for length in range(min(n//2, 40), min_length-1, -1):
-        i = 0
-        while i <= n - length:
-            if i in used_positions:
-                i += 1
-                continue
-                
-            pattern = tuple(notes[i:i+length])
-            matches = [i]
-            
-            # Find all subsequent matches not overlapping with used positions
-            j = i + length
-            while j <= n - length:
-                if all(j+k not in used_positions for k in range(length)):
-                    if tuple(notes[j:j+length]) == pattern:
-                        matches.append(j)
-                        j += length
-                    else:
-                        j += 1
-                else:
-                    j += length
-            
-            if len(matches) > 1:
-                # Record pattern and mark positions
-                patterns.append((pattern, len(matches), matches))
-                for pos in matches:
-                    used_positions.update(range(pos, pos+length))
-                i += length * len(matches)
-            else:
-                i += 1
-    
-    return patterns
+    if not values:
+        return 0.0
+
+    counts = Counter(values)
+    total = len(values)
+    probs = [count / total for count in counts.values()]
+
+    entropy = -sum(p * math.log2(p) for p in probs if p > 0)
+    max_entropy = math.log2(len(counts)) if len(counts) > 1 else 0.0
+
+    if max_entropy == 0.0:
+        return 0.0
+
+    return entropy / max_entropy
+
+
+def quantize(value, step=0.25):
+    if step <= 0:
+        return value
+    return round(value / step) * step
+
+
+def ngram_unique_ratio(tokens, n):
+    if len(tokens) < n:
+        return 0.0
+
+    ngrams = [tuple(tokens[i:i+n]) for i in range(len(tokens) - n + 1)]
+    if not ngrams:
+        return 0.0
+
+    return len(set(ngrams)) / len(ngrams)
